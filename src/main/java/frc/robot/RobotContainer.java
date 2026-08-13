@@ -4,23 +4,15 @@
 
 package frc.robot;
 
+import com.pathplanner.lib.auto.AutoBuilder;
 import frc.robot.Constants.OperatorConstants;
-import frc.robot.commands.AutoAllign;
-import frc.robot.commands.AutonomousSequences;
-import frc.robot.commands.ExampleCommand;
-import frc.robot.subsystems.ExampleSubsystem;
-import frc.robot.subsystems.IntakePivotSubsystem;
-import frc.robot.subsystems.LimelightSubsystem;
-import frc.robot.subsystems.ShooterSubsystem;
-import frc.robot.subsystems.SwerveSubsystem;
+import frc.robot.drive1108.DriveSubsystem;
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
-import swervelib.SwerveInputStream;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
-import edu.wpi.first.wpilibj2.command.button.Trigger;
 
 
 /**
@@ -31,64 +23,26 @@ import edu.wpi.first.wpilibj2.command.button.Trigger;
  */
 public class RobotContainer {
   // The robot's subsystems and commands are defined here...
-    private final ExampleSubsystem m_exampleSubsystem = new ExampleSubsystem();
-    private final SwerveSubsystem drivebase = new SwerveSubsystem();
-    private final LimelightSubsystem limelightSubsystem = new LimelightSubsystem();
-    private final IntakePivotSubsystem intakePivotSubsystem = new IntakePivotSubsystem();
-    // Shooter left/right, tower, conveyor, intake roller CAN IDs from shooter-pid branch.
-    private final ShooterSubsystem shooterSubsystem = new ShooterSubsystem(11, 9, 12, 13, 16);
-    private final AutoAllign autoAllignCommand;
-    private final SendableChooser<Command> autonomousChooser = new SendableChooser<>();
+    private final DriveSubsystem drivebase = new DriveSubsystem();
+    private final SendableChooser<Command> autonomousChooser = AutoBuilder.buildAutoChooser();
     private boolean invertDriveBindings = false;
   
     // Replace with CommandPS4Controller or CommandJoystick if needed
     private final CommandXboxController m_driverController =
         new CommandXboxController(OperatorConstants.kDriverControllerPort);
-    private final CommandXboxController m_operatorController =
-        new CommandXboxController(OperatorConstants.kOperatorControllerPort);
 
     /** The container for the robot. Contains subsystems, OI devices, and commands. */
     public RobotContainer() {
-      autoAllignCommand = new AutoAllign(
-          limelightSubsystem,
-          drivebase,
-          () ->
-              applyDriveInversion(
-                      MathUtil.applyDeadband(
-                          m_driverController.getLeftX(), OperatorConstants.LEFT_X_DEADBAND))
-                  * Constants.maximumSpeed
-                  * 0.85);
-      // Configure the trigger bindings
       configureBindings();
-      configureAutonomousChooser();
-      if (drivebase.isReady()) {
-        SwerveInputStream driveDirectAngle = SwerveInputStream
-            .of(
-                drivebase.getSwerveDrive(),
-                () -> -m_driverController.getLeftY(),
-                () -> -m_driverController.getLeftX())
-            .withControllerHeadingAxis(m_driverController::getRightX, m_driverController::getRightY)
-            .headingWhile(true)
-            .deadband(Constants.OperatorConstants.DEADBAND)
-            .scaleTranslation(0.8)
-            .allianceRelativeControl(true);
-
-        // Keep this command prepared for later switching.
-        Command driveFieldOrientedSwerveInput = drivebase.driveFieldOriented(driveDirectAngle);
-
-        // Applies deadbands and uses right stick as desired heading setpoint.
-        Command driveFieldOrientedDirectAngle = drivebase.driveCommand(
-            () -> applyDriveInversion(MathUtil.applyDeadband(
-                m_driverController.getLeftY(), OperatorConstants.LEFT_Y_DEADBAND)),
-            () -> applyDriveInversion(MathUtil.applyDeadband(
-                m_driverController.getLeftX(), OperatorConstants.LEFT_X_DEADBAND)),
-            () -> applyDriveInversion(m_driverController.getRightX()));
-
-        drivebase.setDefaultCommand(driveFieldOrientedDirectAngle);
-      }
-
-      // Feed robot pose to Limelight simulation support.
-      limelightSubsystem.setRobotPoseSupplier(drivebase::getPose);
+      drivebase.setDefaultCommand(drivebase.run(() -> drivebase.drive(
+          applyDriveInversion(-MathUtil.applyDeadband(
+              m_driverController.getLeftY(), OperatorConstants.LEFT_Y_DEADBAND)),
+          applyDriveInversion(-MathUtil.applyDeadband(
+              m_driverController.getLeftX(), OperatorConstants.LEFT_X_DEADBAND)),
+          applyDriveInversion(-MathUtil.applyDeadband(
+              m_driverController.getRightX(), OperatorConstants.LEFT_X_DEADBAND)),
+          true)));
+      SmartDashboard.putData("Autonomous", autonomousChooser);
     }
 
   /**
@@ -101,71 +55,16 @@ public class RobotContainer {
    * joysticks}.
    */
   private void configureBindings() {
-    // Schedule `ExampleCommand` when `exampleCondition` changes to `true`
-    new Trigger(m_exampleSubsystem::exampleCondition)
-        .onTrue(new ExampleCommand(m_exampleSubsystem));
-
-    // Run AutoAlign on A.
-    m_driverController.a().onTrue(autoAllignCommand);
-    m_operatorController.a().onTrue(autoAllignCommand);
-
-    // Cancel AutoAlign on left trigger.
-    m_driverController.leftTrigger().onTrue(Commands.runOnce(autoAllignCommand::cancel));
-    m_operatorController.leftTrigger().onTrue(Commands.runOnce(autoAllignCommand::cancel));
-
-    // Toggle shooter+tower+conveyor on B (operator controller).
-    m_operatorController.b().toggleOnTrue(Commands.startEnd(
-        () -> shooterSubsystem.shootWithPID(),
-        () -> shooterSubsystem.stop(),
-        shooterSubsystem));
-
-    // Toggle intake + conveyor on X (operator controller).
-    m_operatorController.x().toggleOnTrue(Commands.startEnd(
-        shooterSubsystem::runIntakeAndConveyor,
-        shooterSubsystem::stopIntakeAndConveyor,
-        shooterSubsystem));
-
-    // Run intake + conveyor in reverse while up arrow is held (jam clear).
-    //adjust as needed
-    /*
-    m_operatorController.povUp().whileTrue(Commands.run(
-      shooterSubsystem::reverseIntakeAndConveyor, shooterSubsystem));
-
-    m_operatorController.povUp().onFalse(Commands.runOnce(
-      shooterSubsystem::stopIntakeAndConveyor, shooterSubsystem));
-    */
-    
     // Toggle manual drive inversion on Y for alliance-side perspective changes.
     m_driverController.y().onTrue(Commands.runOnce(() -> {
       invertDriveBindings = !invertDriveBindings;
       SmartDashboard.putBoolean("Drive Controls Inverted", invertDriveBindings);
     }));
 
-    // Move intake pivot down on right trigger (operator controller).
-    m_operatorController.rightTrigger().onTrue(Commands.runOnce(
-        intakePivotSubsystem::moveDown,
-        intakePivotSubsystem));
+    m_driverController.start().onTrue(Commands.runOnce(drivebase::zeroHeading, drivebase));
+    m_driverController.x().whileTrue(drivebase.run(drivebase::setX));
 
-    // Gently hold intake pivot down while right bumper is held.
-    m_operatorController.rightBumper().whileTrue(Commands.run(
-        intakePivotSubsystem::holdDownSoft,
-        intakePivotSubsystem));
-    m_operatorController.rightBumper().onFalse(Commands.runOnce(
-        intakePivotSubsystem::stop,
-        intakePivotSubsystem));
-
-    // Move intake pivot up on left bumper (operator controller).
-    m_operatorController.leftBumper().onTrue(Commands.runOnce(
-        intakePivotSubsystem::moveUp,
-        intakePivotSubsystem));
-  }
-
-  private void configureAutonomousChooser() {
-    autonomousChooser.setDefaultOption("Middle", AutonomousSequences.middle(drivebase, shooterSubsystem));
-    autonomousChooser.addOption("Left", AutonomousSequences.left(drivebase, shooterSubsystem));
-    autonomousChooser.addOption("Right", AutonomousSequences.right(drivebase, shooterSubsystem));
     SmartDashboard.putBoolean("Drive Controls Inverted", invertDriveBindings);
-    SmartDashboard.putData("Autonomous", autonomousChooser);
   }
 
   private double applyDriveInversion(double value) {
