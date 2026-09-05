@@ -127,6 +127,23 @@ public class DriveSubsystem extends SubsystemBase {
     rearRight.resetDriveEncoder();
   }
 
+  /** Zeros drive distance and returns every steering module to its recorded original angle. */
+  public void resetEncodersToOriginalState() {
+    resetDriveEncoders();
+    frontLeft.setDesiredState(
+        new SwerveModuleState(
+            0.0, Rotation2d.fromDegrees(DriveConstants.FRONT_LEFT_ORIGINAL_ANGLE_DEGREES)));
+    frontRight.setDesiredState(
+        new SwerveModuleState(
+            0.0, Rotation2d.fromDegrees(DriveConstants.FRONT_RIGHT_ORIGINAL_ANGLE_DEGREES)));
+    rearLeft.setDesiredState(
+        new SwerveModuleState(
+            0.0, Rotation2d.fromDegrees(DriveConstants.REAR_LEFT_ORIGINAL_ANGLE_DEGREES)));
+    rearRight.setDesiredState(
+        new SwerveModuleState(
+            0.0, Rotation2d.fromDegrees(DriveConstants.REAR_RIGHT_ORIGINAL_ANGLE_DEGREES)));
+  }
+
   public void zeroHeading() {
     gyro.setYaw(
         DriverStation.getAlliance().orElse(DriverStation.Alliance.Blue)

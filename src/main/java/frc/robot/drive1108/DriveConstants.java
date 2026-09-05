@@ -36,6 +36,12 @@ public final class DriveConstants {
   public static final double REAR_LEFT_ANGULAR_OFFSET_RADIANS = 0.0;
   public static final double REAR_RIGHT_ANGULAR_OFFSET_RADIANS = 0.0;
 
+  // Steering positions recorded during the September 2026 module calibration.
+  public static final double FRONT_LEFT_ORIGINAL_ANGLE_DEGREES = 217.070; // Turn motor 8
+  public static final double FRONT_RIGHT_ORIGINAL_ANGLE_DEGREES = 188.639; // Turn motor 6
+  public static final double REAR_LEFT_ORIGINAL_ANGLE_DEGREES = 53.063; // Turn motor 2
+  public static final double REAR_RIGHT_ORIGINAL_ANGLE_DEGREES = 135.947; // Turn motor 4
+
   public static final double WHEEL_DIAMETER_METERS = Units.inchesToMeters(3.0);
   public static final double DRIVE_REDUCTION = 5.08;
   public static final double NEO_FREE_SPEED_RPM = 5676.0;

@@ -62,6 +62,8 @@ public class RobotContainer {
     }));
 
     m_driverController.start().onTrue(Commands.runOnce(drivebase::zeroHeading, drivebase));
+    m_driverController.b().onTrue(
+        Commands.runOnce(drivebase::resetEncodersToOriginalState, drivebase));
     m_driverController.x().whileTrue(drivebase.run(drivebase::setX));
 
     SmartDashboard.putBoolean("Drive Controls Inverted", invertDriveBindings);
